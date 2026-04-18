@@ -15,10 +15,7 @@ func Register(c *gin.Context) {
 	var req models.RegisterRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Validation failed",
-			"details": utilis.FormatValidationError(err),
-		})
+		utilis.Error(c, http.StatusBadRequest, utilis.FirstValidationMessage(err))
 		return
 	}
 
@@ -26,28 +23,25 @@ func Register(c *gin.Context) {
 	if err != nil {
 		switch err.Error() {
 		case "email already exists", "phone number already exists":
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			utilis.Error(c, http.StatusConflict, err.Error())
 		default:
 			log.Printf("register error: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+			utilis.Error(c, http.StatusInternalServerError, "internal server error")
 		}
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "Registration successful. A temporary password has been sent to your email.",
-		"user":    user,
-	})
+	utilis.Success(c, http.StatusCreated,
+		"Registration successful. A temporary password has been sent to your email.",
+		user,
+	)
 }
 
 func RefreshToken(c *gin.Context) {
 	var req models.RefreshRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Validation failed",
-			"details": utilis.FormatValidationError(err),
-		})
+		utilis.Error(c, http.StatusBadRequest, utilis.FirstValidationMessage(err))
 		return
 	}
 
@@ -55,14 +49,15 @@ func RefreshToken(c *gin.Context) {
 	if err != nil {
 		switch err.Error() {
 		case "invalid or expired refresh token", "refresh token not found or already revoked":
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			utilis.Error(c, http.StatusUnauthorized, err.Error())
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			log.Printf("refresh error: %v", err)
+			utilis.Error(c, http.StatusInternalServerError, "internal server error")
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	utilis.Success(c, http.StatusOK, "Tokens refreshed", gin.H{
 		"accessToken":  tokens.AccessToken,
 		"refreshToken": tokens.RefreshToken,
 	})

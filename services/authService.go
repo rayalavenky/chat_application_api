@@ -61,6 +61,7 @@ func Register(req models.RegisterRequest) (*models.UserResponse, error) {
 		Email:       req.Email,
 		Age:         req.Age,
 		Password:    string(hashedPassword),
+		Role:        "USER",
 		IsOnline:    false,
 		LastSeen:    now,
 		CreatedAt:   now,

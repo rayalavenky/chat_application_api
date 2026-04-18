@@ -14,6 +14,7 @@ type User struct {
 	Email       string             `json:"email" bson:"email" binding:"required,email"`
 	Age         int                `json:"age" bson:"age" binding:"required,gte=1"`
 	Password    string             `json:"password,omitempty" bson:"password" binding:"required,min=6"`
+	Role        string             `json:"role" bson:"role"`
 	IsOnline    bool               `json:"isOnline" bson:"isOnline"`
 	LastSeen    time.Time          `json:"lastSeen" bson:"lastSeen"`
 	CreatedAt   time.Time          `json:"createdAt" bson:"createdAt"`

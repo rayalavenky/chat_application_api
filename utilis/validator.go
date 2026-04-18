@@ -26,6 +26,16 @@ func FormatValidationError(err error) map[string]string {
 	return details
 }
 
+// FirstValidationMessage returns the first human-readable validation error
+// message for a bind error, suitable for use as a flat "message" field.
+func FirstValidationMessage(err error) string {
+	validationErrors, ok := err.(validator.ValidationErrors)
+	if !ok || len(validationErrors) == 0 {
+		return "Validation failed"
+	}
+	return messageFor(validationErrors[0])
+}
+
 func messageFor(fe validator.FieldError) string {
 	field := toCamelCase(fe.Field())
 
