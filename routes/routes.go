@@ -13,5 +13,7 @@ func SetupRoutes(router *gin.Engine) {
 	{
 		auth.POST("/register", controllers.Register)
 		auth.POST("/refresh", controllers.RefreshToken)
+		auth.POST("/login", controllers.Login)
+
 	}
 }

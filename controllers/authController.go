@@ -62,3 +62,26 @@ func RefreshToken(c *gin.Context) {
 		"refreshToken": tokens.RefreshToken,
 	})
 }
+
+func Login(c *gin.Context) {
+	var req models.LoginRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utilis.Error(c, http.StatusBadRequest, utilis.FirstValidationMessage(err))
+		return
+	}
+
+	loginResp, err := services.Login(req)
+	if err != nil {
+		switch err.Error() {
+		case "invalid email or password":
+			utilis.Error(c, http.StatusUnauthorized, err.Error())
+		default:
+			log.Printf("login error: %v", err)
+			utilis.Error(c, http.StatusInternalServerError, "internal server error")
+		}
+		return
+	}
+
+	utilis.Success(c, http.StatusOK, "Login successful", loginResp)
+}

@@ -51,3 +51,23 @@ type RefreshToken struct {
 type RefreshRequest struct {
 	RefreshToken string `json:"refreshToken" binding:"required"`
 }
+
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+type LoginResponse struct {
+	ID           primitive.ObjectID `json:"_id"`
+	FirstName    string             `json:"firstName"`
+	LastName     string             `json:"lastName"`
+	PhoneNumber  string             `json:"phoneNumber"`
+	Email        string             `json:"email"`
+	Age          int                `json:"age"`
+	Role         string             `json:"role"`
+	IsOnline     bool               `json:"isOnline"`
+	LastSeen     time.Time          `json:"lastSeen"`
+	CreatedAt    time.Time          `json:"createdAt"`
+	AccessToken  string             `json:"accessToken"`
+	RefreshToken string             `json:"refreshToken"`
+}

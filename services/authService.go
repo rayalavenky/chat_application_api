@@ -154,3 +154,58 @@ func storeRefreshToken(ctx context.Context, userID primitive.ObjectID, token str
 	_, err := collection.InsertOne(ctx, refreshToken)
 	return err
 }
+
+func Login(req models.LoginRequest) (*models.LoginResponse, error) {
+	collection := config.GetCollection("users")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var user models.User
+	err := collection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, errors.New("invalid email or password")
+		}
+		return nil, err
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		return nil, errors.New("invalid email or password")
+	}
+
+	tokens, err := utilis.GenerateTokenPair(user.ID.Hex(), user.Email)
+	if err != nil {
+		return nil, errors.New("failed to generate tokens")
+	}
+
+	if err := storeRefreshToken(ctx, user.ID, tokens.RefreshToken); err != nil {
+		return nil, errors.New("failed to store refresh token")
+	}
+
+	now := time.Now()
+	if _, err := collection.UpdateOne(ctx,
+		bson.M{"_id": user.ID},
+		bson.M{"$set": bson.M{"isOnline": true, "lastSeen": now}},
+	); err != nil {
+		log.Printf("failed to update online status for user %s: %v", user.ID.Hex(), err)
+	}
+	user.IsOnline = true
+	user.LastSeen = now
+
+	response := &models.LoginResponse{
+		ID:           user.ID,
+		FirstName:    user.FirstName,
+		LastName:     user.LastName,
+		PhoneNumber:  user.PhoneNumber,
+		Email:        user.Email,
+		Age:          user.Age,
+		Role:         user.Role,
+		IsOnline:     user.IsOnline,
+		LastSeen:     user.LastSeen,
+		CreatedAt:    user.CreatedAt,
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+	}
+
+	return response, nil
+}
