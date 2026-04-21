@@ -106,3 +106,57 @@ func Logout(c *gin.Context) {
 
 	utilis.Success(c, http.StatusOK, "Logout successful", nil)
 }
+
+func ForgotPassword(c *gin.Context) {
+	var req models.ForgotPasswordRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utilis.Error(c, http.StatusBadRequest, utilis.FirstValidationMessage(err))
+		return
+	}
+
+	if err := services.ForgotPassword(req); err != nil {
+		log.Printf("forgot password error: %v", err)
+		utilis.Error(c, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	utilis.Success(c, http.StatusOK, "Password reset email sent", nil)
+
+}
+
+func VerifyOTP(c *gin.Context) {
+	var req models.VerifyOTPRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utilis.Error(c, http.StatusBadRequest, utilis.FirstValidationMessage(err))
+		return
+	}
+
+	if err := services.VerifyOTP(req); err != nil {
+		log.Printf("verify otp error: %v", err)
+		utilis.Error(c, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	utilis.Success(c, http.StatusOK, "OTP verified", nil)
+}
+
+func ResetPassword(c *gin.Context) {
+	var req models.ResetPasswordRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utilis.Error(c, http.StatusBadRequest, utilis.FirstValidationMessage(err))
+		return
+	}
+
+	if err := services.ResetPassword(req); err != nil {
+		switch err.Error() {
+		case "user not found", "invalid OTP", "invalid password":
+			utilis.Error(c, http.StatusBadRequest, err.Error())
+		default:
+			log.Printf("reset password error: %v", err)
+			utilis.Error(c, http.StatusInternalServerError, "internal server error")
+		}
+	}
+}

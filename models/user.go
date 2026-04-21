@@ -7,17 +7,19 @@ import (
 )
 
 type User struct {
-	ID          primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
-	FirstName   string             `json:"firstName" bson:"firstName" binding:"required"`
-	LastName    string             `json:"lastName" bson:"lastName" binding:"required"`
-	PhoneNumber string             `json:"phoneNumber" bson:"phoneNumber" binding:"required"`
-	Email       string             `json:"email" bson:"email" binding:"required,email"`
-	Age         int                `json:"age" bson:"age" binding:"required,gte=1"`
-	Password    string             `json:"password,omitempty" bson:"password" binding:"required,min=6"`
-	Role        string             `json:"role" bson:"role"`
-	IsOnline    bool               `json:"isOnline" bson:"isOnline"`
-	LastSeen    time.Time          `json:"lastSeen" bson:"lastSeen"`
-	CreatedAt   time.Time          `json:"createdAt" bson:"createdAt"`
+	ID             primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
+	FirstName      string             `json:"firstName" bson:"firstName" binding:"required"`
+	LastName       string             `json:"lastName" bson:"lastName" binding:"required"`
+	PhoneNumber    string             `json:"phoneNumber" bson:"phoneNumber" binding:"required"`
+	Email          string             `json:"email" bson:"email" binding:"required,email"`
+	Age            int                `json:"age" bson:"age" binding:"required,gte=1"`
+	Password       string             `json:"password,omitempty" bson:"password" binding:"required,min=6"`
+	Role           string             `json:"role" bson:"role"`
+	IsOnline       bool               `json:"isOnline" bson:"isOnline"`
+	LastSeen       time.Time          `json:"lastSeen" bson:"lastSeen"`
+	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt"`
+	ResetOTP       string             `bson:"resetOtp,omitempty"`
+	ResetOTPExpiry time.Time          `bson:"resetOtpExpiry,omitempty"`
 }
 
 type RegisterRequest struct {
@@ -70,4 +72,18 @@ type LoginResponse struct {
 	CreatedAt    time.Time          `json:"createdAt"`
 	AccessToken  string             `json:"accessToken"`
 	RefreshToken string             `json:"refreshToken"`
+}
+
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type VerifyOTPRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	OTP   string `json:"otp" binding:"required"`
+}
+
+type ResetPasswordRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
 }

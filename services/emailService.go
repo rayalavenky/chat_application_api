@@ -132,3 +132,50 @@ func SendWelcomeEmail(toEmail, firstName, password string) error {
 func containsCRLF(s string) bool {
 	return strings.ContainsAny(s, "\r\n")
 }
+
+func SendSimpleEmail(toEmail, subject, body string) error {
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := os.Getenv("SMTP_PORT")
+	smtpUser := os.Getenv("SMTP_USER")
+	smtpPassword := os.Getenv("SMTP_PASSWORD")
+	smtpFrom := os.Getenv("SMTP_FROM")
+
+	if smtpFrom == "" {
+		smtpFrom = smtpUser
+	}
+
+	if smtpHost == "" || smtpPort == "" || smtpUser == "" || smtpPassword == "" {
+		return errors.New("smtp configuration is not set")
+	}
+
+	// Prevent header injection
+	if containsCRLF(toEmail) || containsCRLF(subject) {
+		return errors.New("invalid characters in email")
+	}
+
+	// Build message
+	msg := "From: " + smtpFrom + "\r\n" +
+		"To: " + toEmail + "\r\n" +
+		"Subject: " + subject + "\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: text/plain; charset=\"utf-8\"\r\n" +
+		"\r\n" +
+		body
+
+	auth := smtp.PlainAuth("", smtpUser, smtpPassword, smtpHost)
+	addr := smtpHost + ":" + smtpPort
+
+	err := smtp.SendMail(addr, auth, smtpFrom, []string{toEmail}, []byte(msg))
+	if err != nil {
+		return fmt.Errorf("failed to send email: %w", err)
+	}
+
+	return nil
+}
+
+func SendOTPEmail(toEmail, firstName, otp string) error {
+	subject := "Password reset otp"
+	body := fmt.Sprintf("Hello %s,\n\nYour OTP is: %s\nIt will expire in 10 minutes.", firstName, otp)
+	return SendSimpleEmail(toEmail, subject, body)
+
+}

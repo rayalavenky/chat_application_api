@@ -2,7 +2,9 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"os"
+	"time"
 
 	"chat_application_api/config"
 	"chat_application_api/middleware"
@@ -25,6 +27,7 @@ func main() {
 		port = "8080"
 	}
 
+	rand.Seed(time.Now().UnixNano())
 	log.Printf("Server running on port %s", port)
 	log.Fatal(router.Run(":" + port))
 }

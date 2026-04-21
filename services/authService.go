@@ -239,3 +239,85 @@ func Logout(userID string) error {
 
 	return nil
 }
+
+func ForgotPassword(req models.ForgotPasswordRequest) error {
+	collection := config.GetCollection("users")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	var user models.User
+	err := collection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&user)
+	if err != nil {
+		return errors.New("User not found")
+	}
+
+	otp := utilis.GenerateOTP()
+	expiry := time.Now().Add(10 * time.Minute)
+
+	_, err = collection.UpdateOne(ctx, bson.M{"email": req.Email}, bson.M{
+		"$set": bson.M{
+			"resetOTP":       otp,
+			"resetOTPExpiry": expiry,
+		},
+	},
+	)
+
+	if err != nil {
+		return errors.New("Failed to update user")
+	}
+
+	// Send OTP email
+	err = SendOTPEmail(user.Email, user.FirstName, otp)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func VerifyOTP(req models.VerifyOTPRequest) error {
+	collection := config.GetCollection("users")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	var user models.User
+	err := collection.FindOne(ctx, bson.M{"email": req.Email, "resetOTP": req.OTP, "resetOTPExpiry": bson.M{"$gt": time.Now()}}).Decode(&user)
+	if err != nil {
+		return errors.New("Invalid OTP")
+	}
+
+	return nil
+}
+
+func ResetPassword(req models.ResetPasswordRequest) error {
+	collection := config.GetCollection("users")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	var user models.User
+	err := collection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&user)
+	if err != nil {
+		return errors.New("User not found")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.New("Failed to hash password")
+	}
+
+	_, err = collection.UpdateOne(ctx, bson.M{"email": req.Email}, bson.M{
+		"$set": bson.M{
+			"password":       hashedPassword,
+			"resetOTP":       nil,
+			"resetOTPExpiry": nil,
+		},
+	},
+	)
+
+	if err != nil {
+		return errors.New("Failed to update user")
+	}
+
+	return nil
+}
