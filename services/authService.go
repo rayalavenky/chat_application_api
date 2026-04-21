@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -208,4 +209,33 @@ func Login(req models.LoginRequest) (*models.LoginResponse, error) {
 	}
 
 	return response, nil
+}
+
+func Logout(userID string) error {
+	objectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user id %q: %w", userID, err)
+	}
+
+	revokeCtx, revokeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer revokeCancel()
+
+	refreshColl := config.GetCollection("refresh_tokens")
+	if _, err := refreshColl.DeleteMany(revokeCtx, bson.M{"userId": objectID}); err != nil {
+		return fmt.Errorf("revoke refresh tokens: %w", err)
+	}
+
+	statusCtx, statusCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer statusCancel()
+
+	usersColl := config.GetCollection("users")
+	now := time.Now()
+	if _, err := usersColl.UpdateOne(statusCtx,
+		bson.M{"_id": objectID},
+		bson.M{"$set": bson.M{"isOnline": false, "lastSeen": now}},
+	); err != nil {
+		log.Printf("failed to update offline status for user %s: %v", userID, err)
+	}
+
+	return nil
 }

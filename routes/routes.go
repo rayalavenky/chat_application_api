@@ -2,6 +2,7 @@ package routes
 
 import (
 	"chat_application_api/controllers"
+	"chat_application_api/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -9,11 +10,17 @@ import (
 func SetupRoutes(router *gin.Engine) {
 	api := router.Group("/api")
 
-	auth := api.Group("/auth")
+	publicAuth := api.Group("/auth")
 	{
-		auth.POST("/register", controllers.Register)
-		auth.POST("/refresh", controllers.RefreshToken)
-		auth.POST("/login", controllers.Login)
+		publicAuth.POST("/register", controllers.Register)
+		publicAuth.POST("/refresh", controllers.RefreshToken)
+		publicAuth.POST("/login", controllers.Login)
+	}
 
+	// Protected routes
+	protectedAuth := api.Group("/auth")
+	protectedAuth.Use(middleware.AuthMiddleware())
+	{
+		protectedAuth.POST("/logout", controllers.Logout)
 	}
 }

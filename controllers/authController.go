@@ -83,5 +83,26 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	utilis.Success(c, http.StatusOK, "Login successful", loginResp)
+	utilis.Success(c, http.StatusOK, "Login Successful", loginResp)
+}
+
+func Logout(c *gin.Context) {
+	userIDVal, exists := c.Get("userId")
+	if !exists {
+		utilis.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userID, ok := userIDVal.(string)
+	if !ok {
+		utilis.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if err := services.Logout(userID); err != nil {
+		log.Printf("logout error: %v", err)
+		utilis.Error(c, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	utilis.Success(c, http.StatusOK, "Logout successful", nil)
 }
