@@ -27,7 +27,7 @@ type RegisterRequest struct {
 	LastName    string `json:"lastName" binding:"required,min=3,max=10"`
 	PhoneNumber string `json:"phoneNumber" binding:"required,min=10,max=10"`
 	Email       string `json:"email" binding:"required,email"`
-	Age         int    `json:"age" binding:"required,gte=1"`
+	Age         int    `json:"age" binding:"required,gte=18"`
 }
 
 type UserResponse struct {
