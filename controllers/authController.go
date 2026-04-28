@@ -159,4 +159,6 @@ func ResetPassword(c *gin.Context) {
 			utilis.Error(c, http.StatusInternalServerError, "internal server error")
 		}
 	}
+
+	utilis.Success(c, http.StatusOK, "Password reset successful", nil)
 }
