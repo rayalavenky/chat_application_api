@@ -13,6 +13,7 @@ type User struct {
 	PhoneNumber    string             `json:"phoneNumber" bson:"phoneNumber" binding:"required"`
 	Email          string             `json:"email" bson:"email" binding:"required,email"`
 	Age            int                `json:"age" bson:"age" binding:"required,gte=1"`
+	Bio            string             `json:"bio" bson:"bio,omitempty"`
 	Password       string             `json:"password,omitempty" bson:"password" binding:"required,min=6"`
 	Role           string             `json:"role" bson:"role"`
 	IsOnline       bool               `json:"isOnline" bson:"isOnline"`
@@ -37,6 +38,7 @@ type UserResponse struct {
 	PhoneNumber string             `json:"phoneNumber"`
 	Email       string             `json:"email"`
 	Age         int                `json:"age"`
+	Bio         string             `json:"bio"`
 	IsOnline    bool               `json:"isOnline"`
 	LastSeen    time.Time          `json:"lastSeen"`
 	CreatedAt   time.Time          `json:"createdAt"`
@@ -86,4 +88,12 @@ type VerifyOTPRequest struct {
 type ResetPasswordRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
+}
+
+type UpdateProfileRequest struct {
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	PhoneNumber string `json:"phoneNumber"`
+	Age         int    `json:"age"`
+	Bio         string `json:"bio"`
 }

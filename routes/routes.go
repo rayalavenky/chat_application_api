@@ -21,9 +21,10 @@ func SetupRoutes(router *gin.Engine) {
 		auth.POST("/reset-password", controllers.ResetPassword)
 	}
 
-	users := api.Group("/users")
+	users := api.Group("/users", middleware.AuthMiddleware())
 	{
-		users.GET("/", controllers.GetUsers, middleware.AuthMiddleware())
+		users.GET("/", controllers.GetUsers)
 		users.GET("/:id", controllers.GetUserByID)
+		users.PUT("/profile", controllers.UpdateProfile)
 	}
 }
