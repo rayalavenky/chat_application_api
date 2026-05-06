@@ -7,7 +7,7 @@ import (
 )
 
 type User struct {
-	ID             primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
+	ID             primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
 	FirstName      string             `json:"firstName" bson:"firstName" binding:"required"`
 	LastName       string             `json:"lastName" bson:"lastName" binding:"required"`
 	PhoneNumber    string             `json:"phoneNumber" bson:"phoneNumber" binding:"required"`
@@ -32,7 +32,7 @@ type RegisterRequest struct {
 }
 
 type UserResponse struct {
-	ID          primitive.ObjectID `json:"_id"`
+	ID          primitive.ObjectID `json:"id"`
 	FirstName   string             `json:"firstName"`
 	LastName    string             `json:"lastName"`
 	PhoneNumber string             `json:"phoneNumber"`
@@ -45,7 +45,7 @@ type UserResponse struct {
 }
 
 type RefreshToken struct {
-	ID        primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
+	ID        primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
 	UserID    primitive.ObjectID `json:"userId" bson:"userId"`
 	Token     string             `json:"token" bson:"token"`
 	ExpiresAt time.Time          `json:"expiresAt" bson:"expiresAt"`
@@ -62,7 +62,7 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	ID           primitive.ObjectID `json:"_id"`
+	ID           primitive.ObjectID `json:"id"`
 	FirstName    string             `json:"firstName"`
 	LastName     string             `json:"lastName"`
 	PhoneNumber  string             `json:"phoneNumber"`

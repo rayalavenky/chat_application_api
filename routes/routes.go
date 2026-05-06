@@ -23,8 +23,8 @@ func SetupRoutes(router *gin.Engine) {
 
 	users := api.Group("/users", middleware.AuthMiddleware())
 	{
-		users.GET("/", controllers.GetUsers)
+		users.GET("", controllers.GetUsers)
 		users.GET("/:id", controllers.GetUserByID)
-		users.PUT("/profile", controllers.UpdateProfile)
+		users.PUT("/update", controllers.UpdateProfile)
 	}
 }
