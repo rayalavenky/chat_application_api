@@ -97,3 +97,39 @@ type UpdateProfileRequest struct {
 	Age         int    `json:"age"`
 	Bio         string `json:"bio"`
 }
+
+type UserSearchRequest struct {
+	Search UserSearch `json:"search"`
+}
+
+type UserSearch struct {
+	PhoneNumber string `json:"phoneNumber"`
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	Email       string `json:"email"`
+}
+
+type UserRequest struct {
+	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	FromUserID primitive.ObjectID `bson:"fromUserId" json:"fromUserId"`
+	ToUserID   primitive.ObjectID `bson:"toUserId" json:"toUserId"`
+	Status     string             `bson:"status" json:"status"` // pending, accepted, rejected
+	CreatedAt  time.Time          `bson:"createdAt" json:"createdAt"`
+}
+
+type Contact struct {
+	ID primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+
+	UserID primitive.ObjectID `bson:"userId" json:"userId"`
+
+	ContactUserID primitive.ObjectID `bson:"contactUserId" json:"contactUserId"`
+
+	FirstName   string `bson:"firstName" json:"firstName"`
+	LastName    string `bson:"lastName" json:"lastName"`
+	Email       string `bson:"email" json:"email"`
+	PhoneNumber string `bson:"phoneNumber" json:"phoneNumber"`
+
+	IsOnline bool `bson:"isOnline" json:"isOnline"`
+
+	CreatedAt time.Time `bson:"createdAt" json:"createdAt"`
+}
