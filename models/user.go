@@ -103,10 +103,10 @@ type UserSearchRequest struct {
 }
 
 type UserSearch struct {
-	PhoneNumber string `json:"phoneNumber"`
-	FirstName   string `json:"firstName"`
-	LastName    string `json:"lastName"`
-	Email       string `json:"email"`
+	PhoneNumber string `json:"phoneNumber" form:"phoneNumber"`
+	FirstName   string `json:"firstName"   form:"firstName"`
+	LastName    string `json:"lastName"    form:"lastName"`
+	Email       string `json:"email"       form:"email"`
 }
 
 type UserRequest struct {

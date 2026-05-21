@@ -4,22 +4,16 @@ import (
 	"chat_application_api/models"
 	"chat_application_api/services"
 	"chat_application_api/utilis"
-	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
 func GetUsers(c *gin.Context) {
-	searchParam := c.Query("search")
-
 	var search models.UserSearch
-
-	if searchParam != "" {
-		if err := json.Unmarshal([]byte(searchParam), &search); err != nil {
-			utilis.Error(c, http.StatusBadRequest, "invalid search parameter")
-			return
-		}
+	if err := c.ShouldBindQuery(&search); err != nil {
+		utilis.Error(c, http.StatusBadRequest, "invalid search parameter")
+		return
 	}
 
 	users, err := services.GetUsers(search)
