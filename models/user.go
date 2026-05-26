@@ -37,6 +37,7 @@ type UserResponse struct {
 	LastName    string             `json:"lastName"`
 	PhoneNumber string             `json:"phoneNumber"`
 	Email       string             `json:"email"`
+	Role        string             `json:"role"`
 	Age         int                `json:"age"`
 	Bio         string             `json:"bio"`
 	IsOnline    bool               `json:"isOnline"`
@@ -103,10 +104,10 @@ type UserSearchRequest struct {
 }
 
 type UserSearch struct {
-	PhoneNumber string `json:"phoneNumber" form:"phoneNumber"`
-	FirstName   string `json:"firstName"   form:"firstName"`
-	LastName    string `json:"lastName"    form:"lastName"`
-	Email       string `json:"email"       form:"email"`
+	PhoneNumber string `json:"phoneNumber"`
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	Email       string `json:"email"`
 }
 
 type UserRequest struct {

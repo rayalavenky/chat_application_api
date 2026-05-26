@@ -4,16 +4,21 @@ import (
 	"chat_application_api/models"
 	"chat_application_api/services"
 	"chat_application_api/utilis"
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
 func GetUsers(c *gin.Context) {
+	searchParam := c.Query("search")
+
 	var search models.UserSearch
-	if err := c.ShouldBindQuery(&search); err != nil {
-		utilis.Error(c, http.StatusBadRequest, "invalid search parameter")
-		return
+	if searchParam != "" {
+		if err := json.Unmarshal([]byte(searchParam), &search); err != nil {
+			utilis.Error(c, http.StatusBadRequest, "invalid search parameter")
+			return
+		}
 	}
 
 	users, err := services.GetUsers(search)
@@ -86,6 +91,20 @@ func SendRequest(c *gin.Context) {
 	utilis.Success(c, http.StatusOK, "Request sent successfully", nil)
 }
 
+func GetSentRequests(c *gin.Context) {
+	userID := c.Param("userId")
+
+	requests, err := services.GetSentRequests(userID)
+
+	if err != nil {
+		utilis.Error(c, http.StatusInternalServerError, "failed to fetch sent requests")
+		return
+	}
+
+	utilis.Success(c, http.StatusOK, "Sent requests fetched successfully", requests)
+
+}
+
 func GetReceivedRequests(c *gin.Context) {
 	userID := c.Param("userId")
 
@@ -97,7 +116,6 @@ func GetReceivedRequests(c *gin.Context) {
 	}
 
 	utilis.Success(c, http.StatusOK, "Received requests fetched successfully", requests)
-
 }
 
 func AcceptRequest(c *gin.Context) {

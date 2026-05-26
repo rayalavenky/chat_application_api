@@ -109,6 +109,7 @@ func GetUserByID(userID string) (*models.UserResponse, error) {
 		Email:       user.Email,
 		Age:         user.Age,
 		Bio:         user.Bio,
+		Role:        user.Role,
 		IsOnline:    user.IsOnline,
 		LastSeen:    user.LastSeen,
 		CreatedAt:   user.CreatedAt,
@@ -195,29 +196,122 @@ func SendRequest(req models.UserRequest) error {
 	return nil
 }
 
-func GetReceivedRequests(userID string) ([]models.UserRequest, error) {
+func GetSentRequests(userID string) ([]bson.M, error) {
 	collection := config.GetCollection("requests")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cursor, err := collection.Find(ctx, bson.M{"toUserId": userID})
+	objectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, errors.New("invalid user id")
+	}
+
+	pipeline := mongo.Pipeline{
+		{
+			{
+				Key: "$match",
+				Value: bson.M{
+					"fromUserId": objectID,
+				},
+			},
+		},
+		{
+			{
+				Key: "$lookup",
+				Value: bson.M{
+					"from":         "users",
+					"localField":   "toUserId",
+					"foreignField": "_id",
+					"as":           "toUser",
+				},
+			},
+		},
+		{
+			{
+				Key:   "$unwind",
+				Value: "$toUser",
+			},
+		},
+	}
+
+	cursor, err := collection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, errors.New("failed to fetch requests")
 	}
 	defer cursor.Close(ctx)
 
-	var requests []models.UserRequest
+	var requests []bson.M
+
 	for cursor.Next(ctx) {
-		var request models.UserRequest
-		err := cursor.Decode(&request)
-		if err != nil {
+		var request bson.M
+
+		if err := cursor.Decode(&request); err != nil {
 			return nil, errors.New("failed to decode request")
 		}
+
 		requests = append(requests, request)
 	}
-	if err := cursor.Err(); err != nil {
+
+	return requests, nil
+}
+
+func GetReceivedRequests(userID string) ([]bson.M, error) {
+	collection := config.GetCollection("requests")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	objectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, errors.New("invalid user id")
+	}
+
+	pipeline := mongo.Pipeline{
+		{
+			{
+				Key: "$match",
+				Value: bson.M{
+					"toUserId": objectID,
+				},
+			},
+		},
+		{
+			{
+				Key: "$lookup",
+				Value: bson.M{
+					"from":         "users",
+					"localField":   "fromUserId",
+					"foreignField": "_id",
+					"as":           "fromUser",
+				},
+			},
+		},
+		{
+			{
+				Key:   "$unwind",
+				Value: "$fromUser",
+			},
+		},
+	}
+
+	cursor, err := collection.Aggregate(ctx, pipeline)
+	if err != nil {
 		return nil, err
+	}
+
+	defer cursor.Close(ctx)
+
+	var requests []bson.M
+
+	for cursor.Next(ctx) {
+		var request bson.M
+
+		if err := cursor.Decode(&request); err != nil {
+			return nil, err
+		}
+
+		requests = append(requests, request)
 	}
 
 	return requests, nil
