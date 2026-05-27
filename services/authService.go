@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"time"
 
@@ -98,42 +97,62 @@ func Register(req models.RegisterRequest) (*models.UserResponse, error) {
 }
 
 func RefreshToken(req models.RefreshRequest) (*utilis.TokenPair, error) {
-	// Validate the refresh token
+
+	// Validate JWT refresh token
 	claims, err := utilis.ValidateToken(req.RefreshToken)
 	if err != nil {
 		return nil, errors.New("invalid or expired refresh token")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	// Get refresh token from Redis
+	redisKey := "refresh:" + claims.UserID
 
-	// Check if refresh token exists in DB
-	collection := config.GetCollection("refresh_tokens")
-	var storedToken models.RefreshToken
-	err = collection.FindOne(ctx, bson.M{"token": req.RefreshToken}).Decode(&storedToken)
+	storedToken, err := config.RDB.Get(
+		config.Ctx,
+		redisKey,
+	).Result()
+
 	if err != nil {
-		return nil, errors.New("refresh token not found or already revoked")
+		return nil, errors.New("refresh token not found or expired")
 	}
 
-	// Delete the old refresh token (rotate)
-	_, err = collection.DeleteOne(ctx, bson.M{"token": req.RefreshToken})
+	// Compare stored token with request token
+	if storedToken != req.RefreshToken {
+		return nil, errors.New("invalid refresh token")
+	}
+
+	// Delete old refresh token (rotation)
+	err = config.RDB.Del(
+		config.Ctx,
+		redisKey,
+	).Err()
+
 	if err != nil {
 		return nil, errors.New("failed to revoke old refresh token")
 	}
 
 	// Generate new token pair
-	tokens, err := utilis.GenerateTokenPair(claims.UserID, claims.Email)
+	tokens, err := utilis.GenerateTokenPair(
+		claims.UserID,
+		claims.Email,
+	)
+
 	if err != nil {
 		return nil, errors.New("failed to generate tokens")
 	}
 
-	// Store new refresh token
+	// Convert user id
 	userID, err := primitive.ObjectIDFromHex(claims.UserID)
 	if err != nil {
-		return nil, errors.New("invalid user ID")
+		return nil, errors.New("invalid user id")
 	}
 
-	err = storeRefreshToken(ctx, userID, tokens.RefreshToken)
+	// Store new refresh token in Redis
+	err = storeRefreshToken(
+		userID,
+		tokens.RefreshToken,
+	)
+
 	if err != nil {
 		return nil, errors.New("failed to store new refresh token")
 	}
@@ -141,18 +160,17 @@ func RefreshToken(req models.RefreshRequest) (*utilis.TokenPair, error) {
 	return tokens, nil
 }
 
-func storeRefreshToken(ctx context.Context, userID primitive.ObjectID, token string) error {
-	collection := config.GetCollection("refresh_tokens")
+func storeRefreshToken(userID primitive.ObjectID, token string) error {
 
-	refreshToken := models.RefreshToken{
-		ID:        primitive.NewObjectID(),
-		UserID:    userID,
-		Token:     token,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-		CreatedAt: time.Now(),
-	}
+	redisKey := "refresh:" + userID.Hex()
 
-	_, err := collection.InsertOne(ctx, refreshToken)
+	err := config.RDB.Set(
+		config.Ctx,
+		redisKey,
+		token,
+		7*24*time.Hour,
+	).Err()
+
 	return err
 }
 
@@ -179,10 +197,9 @@ func Login(req models.LoginRequest) (*models.LoginResponse, error) {
 		return nil, errors.New("failed to generate tokens")
 	}
 
-	if err := storeRefreshToken(ctx, user.ID, tokens.RefreshToken); err != nil {
+	if err := storeRefreshToken(user.ID, tokens.RefreshToken); err != nil {
 		return nil, errors.New("failed to store refresh token")
 	}
-
 	now := time.Now()
 	if _, err := collection.UpdateOne(ctx,
 		bson.M{"_id": user.ID},
@@ -212,29 +229,14 @@ func Login(req models.LoginRequest) (*models.LoginResponse, error) {
 }
 
 func Logout(userID string) error {
-	objectID, err := primitive.ObjectIDFromHex(userID)
+
+	err := config.RDB.Del(
+		config.Ctx,
+		"refresh:"+userID,
+	).Err()
+
 	if err != nil {
-		return fmt.Errorf("invalid user id %q: %w", userID, err)
-	}
-
-	revokeCtx, revokeCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer revokeCancel()
-
-	refreshColl := config.GetCollection("refresh_tokens")
-	if _, err := refreshColl.DeleteMany(revokeCtx, bson.M{"userId": objectID}); err != nil {
-		return fmt.Errorf("revoke refresh tokens: %w", err)
-	}
-
-	statusCtx, statusCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer statusCancel()
-
-	usersColl := config.GetCollection("users")
-	now := time.Now()
-	if _, err := usersColl.UpdateOne(statusCtx,
-		bson.M{"_id": objectID},
-		bson.M{"$set": bson.M{"isOnline": false, "lastSeen": now}},
-	); err != nil {
-		log.Printf("failed to update offline status for user %s: %v", userID, err)
+		return err
 	}
 
 	return nil
@@ -252,18 +254,18 @@ func ForgotPassword(req models.ForgotPasswordRequest) error {
 	}
 
 	otp := utilis.GenerateOTP()
-	expiry := time.Now().Add(10 * time.Minute)
 
-	_, err = collection.UpdateOne(ctx, bson.M{"email": req.Email}, bson.M{
-		"$set": bson.M{
-			"resetOTP":       otp,
-			"resetOTPExpiry": expiry,
-		},
-	},
-	)
+	redisKey := "otp:" + req.Email
+
+	err = config.RDB.Set(
+		config.Ctx,
+		redisKey,
+		otp,
+		10*time.Minute,
+	).Err()
 
 	if err != nil {
-		return errors.New("Failed to update user")
+		return errors.New("failed to store otp")
 	}
 
 	// Send OTP email
@@ -277,14 +279,20 @@ func ForgotPassword(req models.ForgotPasswordRequest) error {
 }
 
 func VerifyOTP(req models.VerifyOTPRequest) error {
-	collection := config.GetCollection("users")
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
 
-	var user models.User
-	err := collection.FindOne(ctx, bson.M{"email": req.Email, "resetOTP": req.OTP, "resetOTPExpiry": bson.M{"$gt": time.Now()}}).Decode(&user)
+	redisKey := "otp:" + req.Email
+
+	storedOTP, err := config.RDB.Get(
+		config.Ctx,
+		redisKey,
+	).Result()
+
 	if err != nil {
-		return errors.New("Invalid OTP")
+		return errors.New("otp expired or not found")
+	}
+
+	if storedOTP != req.OTP {
+		return errors.New("invalid otp")
 	}
 
 	return nil
@@ -318,6 +326,7 @@ func ResetPassword(req models.ResetPasswordRequest) error {
 	if err != nil {
 		return errors.New("Failed to update user")
 	}
+	config.RDB.Del(config.Ctx, "otp:"+req.Email)
 
 	return nil
 }

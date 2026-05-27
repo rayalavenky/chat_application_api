@@ -16,6 +16,8 @@ import (
 func main() {
 	config.ConnectDB()
 
+	config.ConnectRedis()
+
 	router := gin.Default()
 
 	router.Use(middleware.CORSMiddleware())
