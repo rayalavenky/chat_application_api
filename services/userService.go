@@ -12,13 +12,23 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func GetUsers(search models.UserSearch) ([]models.UserResponse, error) {
-	collection := config.GetCollection("users")
+func GetUsers(search models.UserSearch, loggedInUserID string) ([]models.UserResponse, error) {
+	userCollection := config.GetCollection("users")
+	requestCollection := config.GetCollection("requests")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	filter := bson.M{}
+
+	loggedInObjectID, err := primitive.ObjectIDFromHex(loggedInUserID)
+	if err != nil {
+		return nil, errors.New("invalid logged in user ID")
+	}
+
+	filter["_id"] = bson.M{
+		"$ne": loggedInObjectID,
+	}
 
 	if search.PhoneNumber != "" {
 		filter["phoneNumber"] = bson.M{
@@ -48,11 +58,22 @@ func GetUsers(search models.UserSearch) ([]models.UserResponse, error) {
 		}
 	}
 
-	cursor, err := collection.Find(ctx, filter)
+	// fetch users
+	cursor, err := userCollection.Find(ctx, filter)
 	if err != nil {
 		return nil, errors.New("failed to fetch users")
 	}
 	defer cursor.Close(ctx)
+
+	requestedUsers, err := getSentRequestIDs(ctx, requestCollection, loggedInObjectID)
+	if err != nil {
+		return nil, err
+	}
+
+	incomingRequests, err := getPendingIncomingRequests(ctx, requestCollection, loggedInObjectID)
+	if err != nil {
+		return nil, err
+	}
 
 	var users []models.UserResponse
 
@@ -61,17 +82,27 @@ func GetUsers(search models.UserSearch) ([]models.UserResponse, error) {
 		if err := cursor.Decode(&user); err != nil {
 			return nil, err
 		}
+
+		incomingID, hasIncoming := incomingRequests[user.ID]
+		var incomingIDPtr *primitive.ObjectID
+		if hasIncoming {
+			incomingIDPtr = &incomingID
+		}
+
 		users = append(users, models.UserResponse{
-			ID:          user.ID,
-			FirstName:   user.FirstName,
-			LastName:    user.LastName,
-			PhoneNumber: user.PhoneNumber,
-			Email:       user.Email,
-			Age:         user.Age,
-			Bio:         user.Bio,
-			IsOnline:    user.IsOnline,
-			LastSeen:    user.LastSeen,
-			CreatedAt:   user.CreatedAt,
+			ID:                user.ID,
+			FirstName:         user.FirstName,
+			LastName:          user.LastName,
+			PhoneNumber:       user.PhoneNumber,
+			Email:             user.Email,
+			Age:               user.Age,
+			Bio:               user.Bio,
+			IsOnline:          user.IsOnline,
+			LastSeen:          user.LastSeen,
+			CreatedAt:         user.CreatedAt,
+			IsRequestSent:     requestedUsers[user.ID],
+			IsRequestReceived: hasIncoming,
+			IncomingRequestID: incomingIDPtr,
 		})
 	}
 	if err := cursor.Err(); err != nil {
@@ -79,6 +110,51 @@ func GetUsers(search models.UserSearch) ([]models.UserResponse, error) {
 	}
 
 	return users, nil
+}
+
+func getSentRequestIDs(ctx context.Context, requestCollection *mongo.Collection, fromUserID primitive.ObjectID) (map[primitive.ObjectID]bool, error) {
+	cursor, err := requestCollection.Find(ctx, bson.M{"fromUserId": fromUserID})
+	if err != nil {
+		return nil, errors.New("failed to fetch sent requests")
+	}
+	defer cursor.Close(ctx)
+
+	sent := map[primitive.ObjectID]bool{}
+	for cursor.Next(ctx) {
+		var request models.UserRequest
+		if err := cursor.Decode(&request); err != nil {
+			return nil, err
+		}
+		sent[request.ToUserID] = true
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+	return sent, nil
+}
+
+func getPendingIncomingRequests(ctx context.Context, requestCollection *mongo.Collection, toUserID primitive.ObjectID) (map[primitive.ObjectID]primitive.ObjectID, error) {
+	cursor, err := requestCollection.Find(ctx, bson.M{
+		"toUserId": toUserID,
+		"status":   "pending",
+	})
+	if err != nil {
+		return nil, errors.New("failed to fetch received requests")
+	}
+	defer cursor.Close(ctx)
+
+	incoming := map[primitive.ObjectID]primitive.ObjectID{}
+	for cursor.Next(ctx) {
+		var request models.UserRequest
+		if err := cursor.Decode(&request); err != nil {
+			return nil, err
+		}
+		incoming[request.FromUserID] = request.RequestID
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+	return incoming, nil
 }
 
 func GetUserByID(userID string) (*models.UserResponse, error) {
@@ -163,276 +239,4 @@ func UpdateProfile(userID string, req models.UpdateProfileRequest) (*models.User
 		LastSeen:    user.LastSeen,
 		CreatedAt:   user.CreatedAt,
 	}, nil
-}
-
-func SendRequest(req models.UserRequest) error {
-	collection := config.GetCollection("requests")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	filter := bson.M{
-		"fromUserId": req.FromUserID,
-		"toUserId":   req.ToUserID,
-	}
-
-	count, err := collection.CountDocuments(ctx, filter)
-	if err != nil {
-		return errors.New("failed to check existing requests")
-	}
-
-	if count > 0 {
-		return errors.New("request already exists")
-	}
-
-	req.CreatedAt = time.Now()
-	req.Status = "pending"
-
-	_, err = collection.InsertOne(ctx, req)
-	if err != nil {
-		return errors.New("failed to send request")
-	}
-
-	return nil
-}
-
-func GetSentRequests(userID string) ([]bson.M, error) {
-	collection := config.GetCollection("requests")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	objectID, err := primitive.ObjectIDFromHex(userID)
-	if err != nil {
-		return nil, errors.New("invalid user id")
-	}
-
-	pipeline := mongo.Pipeline{
-		{
-			{
-				Key: "$match",
-				Value: bson.M{
-					"fromUserId": objectID,
-				},
-			},
-		},
-		{
-			{
-				Key: "$lookup",
-				Value: bson.M{
-					"from":         "users",
-					"localField":   "toUserId",
-					"foreignField": "_id",
-					"as":           "toUser",
-				},
-			},
-		},
-		{
-			{
-				Key:   "$unwind",
-				Value: "$toUser",
-			},
-		},
-	}
-
-	cursor, err := collection.Aggregate(ctx, pipeline)
-	if err != nil {
-		return nil, errors.New("failed to fetch requests")
-	}
-	defer cursor.Close(ctx)
-
-	var requests []bson.M
-
-	for cursor.Next(ctx) {
-		var request bson.M
-
-		if err := cursor.Decode(&request); err != nil {
-			return nil, errors.New("failed to decode request")
-		}
-
-		requests = append(requests, request)
-	}
-
-	return requests, nil
-}
-
-func GetReceivedRequests(userID string) ([]bson.M, error) {
-	collection := config.GetCollection("requests")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	objectID, err := primitive.ObjectIDFromHex(userID)
-	if err != nil {
-		return nil, errors.New("invalid user id")
-	}
-
-	pipeline := mongo.Pipeline{
-		{
-			{
-				Key: "$match",
-				Value: bson.M{
-					"toUserId": objectID,
-				},
-			},
-		},
-		{
-			{
-				Key: "$lookup",
-				Value: bson.M{
-					"from":         "users",
-					"localField":   "fromUserId",
-					"foreignField": "_id",
-					"as":           "fromUser",
-				},
-			},
-		},
-		{
-			{
-				Key:   "$unwind",
-				Value: "$fromUser",
-			},
-		},
-	}
-
-	cursor, err := collection.Aggregate(ctx, pipeline)
-	if err != nil {
-		return nil, err
-	}
-
-	defer cursor.Close(ctx)
-
-	var requests []bson.M
-
-	for cursor.Next(ctx) {
-		var request bson.M
-
-		if err := cursor.Decode(&request); err != nil {
-			return nil, err
-		}
-
-		requests = append(requests, request)
-	}
-
-	return requests, nil
-}
-
-func AcceptRequest(requestID string) error {
-	requestCollection := config.GetCollection("requests")
-	contactCollection := config.GetCollection("contacts")
-	userCollection := config.GetCollection("users")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	objectID, err := primitive.ObjectIDFromHex(requestID)
-	if err != nil {
-		return errors.New("invalid request ID")
-	}
-
-	var request models.UserRequest
-	err = requestCollection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&request)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return errors.New("request not found")
-		}
-		return err
-	}
-
-	var fromUser, toUser models.User
-	err = userCollection.FindOne(ctx, bson.M{
-		"_id": request.FromUserID,
-	}).Decode(&fromUser)
-	if err != nil {
-		return errors.New("sender user not found")
-	}
-
-	err = userCollection.FindOne(ctx, bson.M{
-		"_id": request.ToUserID,
-	}).Decode(&toUser)
-	if err != nil {
-		return errors.New("receiver user not found")
-	}
-
-	// update request status
-	_, err = requestCollection.UpdateOne(
-		ctx,
-		bson.M{
-			"_id": objectID,
-		},
-		bson.M{
-			"$set": bson.M{
-				"status": "accepted",
-			},
-		},
-	)
-
-	if err != nil {
-		return err
-	}
-
-	// A -> B
-	contact1 := models.Contact{
-		UserID:        request.FromUserID,
-		ContactUserID: request.ToUserID,
-		FirstName:     toUser.FirstName,
-		LastName:      toUser.LastName,
-		Email:         toUser.Email,
-		PhoneNumber:   toUser.PhoneNumber,
-		IsOnline:      toUser.IsOnline,
-		CreatedAt:     time.Now(),
-	}
-
-	// B -> A
-	contact2 := models.Contact{
-		UserID:        request.ToUserID,
-		ContactUserID: request.FromUserID,
-		FirstName:     fromUser.FirstName,
-		LastName:      fromUser.LastName,
-		Email:         fromUser.Email,
-		PhoneNumber:   fromUser.PhoneNumber,
-		IsOnline:      fromUser.IsOnline,
-		CreatedAt:     time.Now(),
-	}
-
-	// insert both contacts
-	_, err = contactCollection.InsertOne(ctx, contact1)
-	if err != nil {
-		return err
-	}
-
-	_, err = contactCollection.InsertOne(ctx, contact2)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func GetContacts(userID string) ([]models.Contact, error) {
-	collection := config.GetCollection("contacts")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	cursor, err := collection.Find(ctx, bson.M{"userID": userID})
-	if err != nil {
-		return nil, errors.New("failed to fetch contacts")
-	}
-	defer cursor.Close(ctx)
-
-	var contacts []models.Contact
-	for cursor.Next(ctx) {
-		var contact models.Contact
-		err := cursor.Decode(&contact)
-		if err != nil {
-			return nil, errors.New("failed to decode contact")
-		}
-		contacts = append(contacts, contact)
-	}
-	if err := cursor.Err(); err != nil {
-		return nil, err
-	}
-
-	return contacts, nil
 }
