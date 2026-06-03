@@ -27,6 +27,7 @@ func SetupRoutes(router *gin.Engine) {
 		users.GET("/:id", controllers.GetUserByID)
 		users.PUT("/update", controllers.UpdateProfile)
 		users.POST("/requests/send", controllers.SendRequest)
+		users.GET("/requests/sent/:userId", controllers.GetSentRequests)
 		users.GET("/requests/received/:userId", controllers.GetReceivedRequests)
 		users.PUT("/requests/accept/:requestId", controllers.AcceptRequest)
 		users.GET("/contacts/:userId", controllers.GetContacts)

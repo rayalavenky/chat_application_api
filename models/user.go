@@ -32,16 +32,20 @@ type RegisterRequest struct {
 }
 
 type UserResponse struct {
-	ID          primitive.ObjectID `json:"id"`
-	FirstName   string             `json:"firstName"`
-	LastName    string             `json:"lastName"`
-	PhoneNumber string             `json:"phoneNumber"`
-	Email       string             `json:"email"`
-	Age         int                `json:"age"`
-	Bio         string             `json:"bio"`
-	IsOnline    bool               `json:"isOnline"`
-	LastSeen    time.Time          `json:"lastSeen"`
-	CreatedAt   time.Time          `json:"createdAt"`
+	ID                primitive.ObjectID  `json:"id"`
+	FirstName         string              `json:"firstName"`
+	LastName          string              `json:"lastName"`
+	PhoneNumber       string              `json:"phoneNumber"`
+	Email             string              `json:"email"`
+	Role              string              `json:"role"`
+	Age               int                 `json:"age"`
+	Bio               string              `json:"bio"`
+	IsOnline          bool                `json:"isOnline"`
+	LastSeen          time.Time           `json:"lastSeen"`
+	CreatedAt         time.Time           `json:"createdAt"`
+	IsRequestSent     bool                `json:"isRequestSent"`
+	IsRequestReceived bool                `json:"isRequestReceived"`
+	IncomingRequestID *primitive.ObjectID `json:"incomingRequestId,omitempty"`
 }
 
 type RefreshToken struct {
@@ -110,11 +114,12 @@ type UserSearch struct {
 }
 
 type UserRequest struct {
-	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	RequestID  primitive.ObjectID `bson:"_id,omitempty" json:"requestId"`
 	FromUserID primitive.ObjectID `bson:"fromUserId" json:"fromUserId"`
 	ToUserID   primitive.ObjectID `bson:"toUserId" json:"toUserId"`
 	Status     string             `bson:"status" json:"status"` // pending, accepted, rejected
 	CreatedAt  time.Time          `bson:"createdAt" json:"createdAt"`
+	AcceptedAt *time.Time         `bson:"acceptedAt,omitempty" json:"acceptedAt,omitempty"`
 }
 
 type Contact struct {
