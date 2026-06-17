@@ -9,6 +9,7 @@ import (
 
 func SetupRoutes(router *gin.Engine) {
 	api := router.Group("/api")
+	router.GET("/ws", controllers.WebSocketHandler)
 
 	auth := api.Group("/auth")
 	{
