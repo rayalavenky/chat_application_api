@@ -64,3 +64,14 @@ func AcceptRequest(c *gin.Context) {
 
 	utilis.Success(c, http.StatusOK, "Request accepted successfully", nil)
 }
+
+func RejectRequest(c *gin.Context) {
+	requestID := c.Param("requestId")
+
+	err := services.RejectRequest(requestID)
+	if err != nil {
+		utilis.Error(c, http.StatusInternalServerError, "failed to reject request")
+		return
+	}
+	utilis.Success(c, http.StatusOK, "Request rejected successfully", nil)
+}

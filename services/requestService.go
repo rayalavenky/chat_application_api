@@ -18,20 +18,61 @@ func SendRequest(req models.UserRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// prevent self request
+	if req.FromUserID == req.ToUserID {
+		return errors.New("cannot send request to yourself")
+	}
+
 	filter := bson.M{
 		"fromUserId": req.FromUserID,
 		"toUserId":   req.ToUserID,
 	}
 
-	count, err := collection.CountDocuments(ctx, filter)
-	if err != nil {
-		return errors.New("failed to check existing requests")
+	var existingRequest models.UserRequest
+
+	err := collection.FindOne(ctx, filter).Decode(&existingRequest)
+
+	if err == nil {
+
+		// already exists
+		if existingRequest.Status == "pending" {
+			return errors.New("request already sent")
+		}
+
+		if existingRequest.Status == "accepted" {
+			return errors.New("already connected")
+		}
+
+		// rejected -> allow resend
+		if existingRequest.Status == "rejected" {
+
+			_, err = collection.UpdateOne(
+				ctx,
+				filter,
+				bson.M{
+					"$set": bson.M{
+						"status":     "pending",
+						"createdAt":  time.Now(),
+						"rejectedAt": nil,
+						"acceptedAt": nil,
+					},
+				},
+			)
+
+			if err != nil {
+				return errors.New("failed to resend request")
+			}
+
+			return nil
+		}
 	}
 
-	if count > 0 {
-		return errors.New("request already exists")
+	// unexpected DB error
+	if err != mongo.ErrNoDocuments {
+		return errors.New("failed to check existing request")
 	}
 
+	// create new request
 	req.CreatedAt = time.Now()
 	req.Status = "pending"
 
@@ -286,5 +327,33 @@ func AcceptRequest(requestID string) error {
 		return err
 	}
 
+	return nil
+}
+
+func RejectRequest(requestID string) error {
+	requestCollection := config.GetCollection("requests")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	objectID, err := primitive.ObjectIDFromHex(requestID)
+	if err != nil {
+		return errors.New("invalid request ID")
+	}
+
+	_, err = requestCollection.UpdateOne(
+		ctx,
+		bson.M{
+			"_id": objectID,
+		},
+		bson.M{
+			"$set": bson.M{
+				"status":     "rejected",
+				"rejectedAt": time.Now(),
+			},
+		},
+	)
+	if err != nil {
+		return err
+	}
 	return nil
 }

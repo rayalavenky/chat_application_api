@@ -123,18 +123,13 @@ type UserRequest struct {
 }
 
 type Contact struct {
-	ID primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-
-	UserID primitive.ObjectID `bson:"userId" json:"userId"`
-
+	ID            primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	UserID        primitive.ObjectID `bson:"userId" json:"userId"`
 	ContactUserID primitive.ObjectID `bson:"contactUserId" json:"contactUserId"`
-
-	FirstName   string `bson:"firstName" json:"firstName"`
-	LastName    string `bson:"lastName" json:"lastName"`
-	Email       string `bson:"email" json:"email"`
-	PhoneNumber string `bson:"phoneNumber" json:"phoneNumber"`
-
-	IsOnline bool `bson:"isOnline" json:"isOnline"`
-
-	CreatedAt time.Time `bson:"createdAt" json:"createdAt"`
+	FirstName     string             `bson:"firstName" json:"firstName"`
+	LastName      string             `bson:"lastName" json:"lastName"`
+	Email         string             `bson:"email" json:"email"`
+	PhoneNumber   string             `bson:"phoneNumber" json:"phoneNumber"`
+	IsOnline      bool               `bson:"isOnline" json:"isOnline"`
+	CreatedAt     time.Time          `bson:"createdAt" json:"createdAt"`
 }
