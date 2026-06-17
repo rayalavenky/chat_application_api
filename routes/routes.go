@@ -30,6 +30,8 @@ func SetupRoutes(router *gin.Engine) {
 		users.GET("/requests/sent/:userId", controllers.GetSentRequests)
 		users.GET("/requests/received/:userId", controllers.GetReceivedRequests)
 		users.PUT("/requests/accept/:requestId", controllers.AcceptRequest)
+		users.DELETE("/requests/reject/:requestId", controllers.RejectRequest)
 		users.GET("/contacts/:userId", controllers.GetContacts)
+		users.GET("/contacts/:userId/online", controllers.GetOnlineContacts)
 	}
 }

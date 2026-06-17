@@ -190,6 +190,28 @@ func Login(req models.LoginRequest) (*models.LoginResponse, error) {
 	); err != nil {
 		log.Printf("failed to update online status for user %s: %v", user.ID.Hex(), err)
 	}
+
+	contactsCollection := config.GetCollection("contacts")
+
+	_, err = contactsCollection.UpdateMany(
+		ctx,
+		bson.M{
+			"contactUserId": user.ID,
+		},
+		bson.M{
+			"$set": bson.M{
+				"isOnline": true,
+			},
+		},
+	)
+
+	if err != nil {
+		log.Printf(
+			"failed to update contact online status for user %s: %v",
+			user.ID.Hex(),
+			err,
+		)
+	}
 	user.IsOnline = true
 	user.LastSeen = now
 
@@ -235,6 +257,28 @@ func Logout(userID string) error {
 		bson.M{"$set": bson.M{"isOnline": false, "lastSeen": now}},
 	); err != nil {
 		log.Printf("failed to update offline status for user %s: %v", userID, err)
+	}
+
+	contactsColl := config.GetCollection("contacts")
+
+	_, err = contactsColl.UpdateMany(
+		statusCtx,
+		bson.M{
+			"contactUserId": objectID,
+		},
+		bson.M{
+			"$set": bson.M{
+				"isOnline": false,
+			},
+		},
+	)
+
+	if err != nil {
+		log.Printf(
+			"failed to update contact offline status for user %s: %v",
+			userID,
+			err,
+		)
 	}
 
 	return nil
