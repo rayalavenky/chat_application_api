@@ -4,7 +4,10 @@ import (
 	"chat_application_api/config"
 	"chat_application_api/models"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -13,21 +16,47 @@ import (
 )
 
 func GetUsers(search models.UserSearch, loggedInUserID string) ([]models.UserResponse, error) {
-	userCollection := config.GetCollection("users")
-	requestCollection := config.GetCollection("requests")
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	filter := bson.M{}
+	// Generate cache key
+	cacheKey := fmt.Sprintf(
+		"users:%s:%s:%s:%s:%s",
+		loggedInUserID,
+		search.FirstName,
+		search.LastName,
+		search.Email,
+		search.PhoneNumber,
+	)
+
+	// =========================
+	// Check Redis First
+	// =========================
+	cachedData, err := config.RDB.Get(ctx, cacheKey).Result()
+	if err == nil {
+		var cachedUsers []models.UserResponse
+
+		if err := json.Unmarshal([]byte(cachedData), &cachedUsers); err == nil {
+			fmt.Println("Users fetched from Redis")
+			return cachedUsers, nil
+		}
+	}
+
+	// =========================
+	// MongoDB Collections
+	// =========================
+	userCollection := config.GetCollection("users")
+	requestCollection := config.GetCollection("requests")
 
 	loggedInObjectID, err := primitive.ObjectIDFromHex(loggedInUserID)
 	if err != nil {
 		return nil, errors.New("invalid logged in user ID")
 	}
 
-	filter["_id"] = bson.M{
-		"$ne": loggedInObjectID,
+	filter := bson.M{
+		"_id": bson.M{
+			"$ne": loggedInObjectID,
+		},
 	}
 
 	if search.PhoneNumber != "" {
@@ -58,7 +87,9 @@ func GetUsers(search models.UserSearch, loggedInUserID string) ([]models.UserRes
 		}
 	}
 
-	// fetch users
+	// =========================
+	// Fetch Users from MongoDB
+	// =========================
 	cursor, err := userCollection.Find(ctx, filter)
 	if err != nil {
 		return nil, errors.New("failed to fetch users")
@@ -79,11 +110,13 @@ func GetUsers(search models.UserSearch, loggedInUserID string) ([]models.UserRes
 
 	for cursor.Next(ctx) {
 		var user models.User
+
 		if err := cursor.Decode(&user); err != nil {
 			return nil, err
 		}
 
 		incomingID, hasIncoming := incomingRequests[user.ID]
+
 		var incomingIDPtr *primitive.ObjectID
 		if hasIncoming {
 			incomingIDPtr = &incomingID
@@ -105,9 +138,29 @@ func GetUsers(search models.UserSearch, loggedInUserID string) ([]models.UserRes
 			IncomingRequestID: incomingIDPtr,
 		})
 	}
+
 	if err := cursor.Err(); err != nil {
 		return nil, err
 	}
+
+	// =========================
+	// Store in Redis
+	// =========================
+	jsonData, err := json.Marshal(users)
+	if err == nil {
+		err = config.RDB.Set(
+			ctx,
+			cacheKey,
+			jsonData,
+			10*time.Minute,
+		).Err()
+
+		if err != nil {
+			log.Printf("Redis SET error: %v", err)
+		}
+	}
+
+	fmt.Println("Users fetched from MongoDB")
 
 	return users, nil
 }
