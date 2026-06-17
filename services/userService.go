@@ -113,7 +113,7 @@ func GetUsers(search models.UserSearch, loggedInUserID string) ([]models.UserRes
 }
 
 func getSentRequestIDs(ctx context.Context, requestCollection *mongo.Collection, fromUserID primitive.ObjectID) (map[primitive.ObjectID]bool, error) {
-	cursor, err := requestCollection.Find(ctx, bson.M{"fromUserId": fromUserID})
+	cursor, err := requestCollection.Find(ctx, bson.M{"fromUserId": fromUserID, "status": "pending"})
 	if err != nil {
 		return nil, errors.New("failed to fetch sent requests")
 	}
