@@ -28,14 +28,10 @@ func WebSocketHandler(c *gin.Context) {
 		return
 	}
 
-	websocket.Mutex.Lock()
-	websocket.Clients[userID] = conn
-	websocket.Mutex.Unlock()
+	websocket.AddClient(userID, conn)
 
 	defer func() {
-		websocket.Mutex.Lock()
-		delete(websocket.Clients, userID)
-		websocket.Mutex.Unlock()
+		websocket.RemoveClient(userID)
 		conn.Close()
 	}()
 

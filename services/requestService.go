@@ -3,6 +3,7 @@ package services
 import (
 	"chat_application_api/config"
 	"chat_application_api/models"
+	"chat_application_api/websocket"
 	"context"
 	"errors"
 	"time"
@@ -80,6 +81,16 @@ func SendRequest(req models.UserRequest) error {
 	if err != nil {
 		return errors.New("failed to send request")
 	}
+
+	// websocket notification
+	websocket.SendToUser(
+		req.ToUserID.Hex(),
+		map[string]interface{}{
+			"type":     "new_request",
+			"senderId": req.FromUserID.Hex(),
+			"message":  "New connection request",
+		},
+	)
 
 	return nil
 }
@@ -327,10 +338,21 @@ func AcceptRequest(requestID string) error {
 		return err
 	}
 
+	websocket.SendToUser(
+		request.FromUserID.Hex(),
+		map[string]interface{}{
+			"type":    "request_accepted",
+			"userId":  request.ToUserID.Hex(),
+			"message": "Your request was accepted",
+		},
+	)
+
 	return nil
 }
 
 func RejectRequest(requestID string) error {
+	var request models.UserRequest
+
 	requestCollection := config.GetCollection("requests")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -352,6 +374,17 @@ func RejectRequest(requestID string) error {
 			},
 		},
 	)
+	if err == nil {
+
+		websocket.SendToUser(
+			request.FromUserID.Hex(),
+			map[string]interface{}{
+				"type":    "request_rejected",
+				"userId":  request.ToUserID.Hex(),
+				"message": "Your request was rejected",
+			},
+		)
+	}
 	if err != nil {
 		return err
 	}
