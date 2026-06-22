@@ -7,11 +7,12 @@ const (
 	StatusFailure = "failure"
 )
 
-func Success(c *gin.Context, httpStatus int, message string, data any) {
+func Success(c *gin.Context, httpStatus int, message string, data any, totalRecords int64) {
 	c.JSON(httpStatus, gin.H{
-		"data":    data,
-		"message": message,
-		"status":  StatusSuccess,
+		"data":         data,
+		"message":      message,
+		"status":       StatusSuccess,
+		"totalRecords": totalRecords,
 	})
 }
 

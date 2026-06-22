@@ -23,33 +23,37 @@ func SendRequest(c *gin.Context) {
 		return
 	}
 
-	utilis.Success(c, http.StatusOK, "Request sent successfully", nil)
+	utilis.Success(c, http.StatusOK, "Request sent successfully", nil, 0)
 }
 
 func GetSentRequests(c *gin.Context) {
 	userID := c.Param("userId")
 
-	requests, err := services.GetSentRequests(userID)
+	pagination := utilis.GetPagination(c)
+
+	requests, totalRecords, err := services.GetSentRequests(userID, pagination)
 
 	if err != nil {
 		utilis.Error(c, http.StatusInternalServerError, "failed to fetch sent requests")
 		return
 	}
 
-	utilis.Success(c, http.StatusOK, "Sent requests fetched successfully", requests)
+	utilis.Success(c, http.StatusOK, "Sent requests fetched successfully", requests, totalRecords)
 }
 
 func GetReceivedRequests(c *gin.Context) {
 	userID := c.Param("userId")
 
-	requests, err := services.GetReceivedRequests(userID)
+	pagination := utilis.GetPagination(c)
+
+	requests, totalRecords, err := services.GetReceivedRequests(userID, pagination)
 
 	if err != nil {
 		utilis.Error(c, http.StatusInternalServerError, "failed to fetch received requests")
 		return
 	}
 
-	utilis.Success(c, http.StatusOK, "Received requests fetched successfully", requests)
+	utilis.Success(c, http.StatusOK, "Received requests fetched successfully", requests, totalRecords)
 }
 
 func AcceptRequest(c *gin.Context) {
@@ -62,7 +66,7 @@ func AcceptRequest(c *gin.Context) {
 		return
 	}
 
-	utilis.Success(c, http.StatusOK, "Request accepted successfully", nil)
+	utilis.Success(c, http.StatusOK, "Request accepted successfully", nil, 0)
 }
 
 func RejectRequest(c *gin.Context) {
@@ -73,5 +77,5 @@ func RejectRequest(c *gin.Context) {
 		utilis.Error(c, http.StatusInternalServerError, "failed to reject request")
 		return
 	}
-	utilis.Success(c, http.StatusOK, "Request rejected successfully", nil)
+	utilis.Success(c, http.StatusOK, "Request rejected successfully", nil, 0)
 }

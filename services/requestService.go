@@ -3,6 +3,7 @@ package services
 import (
 	"chat_application_api/config"
 	"chat_application_api/models"
+	"chat_application_api/utilis"
 	"context"
 	"errors"
 	"time"
@@ -84,7 +85,7 @@ func SendRequest(req models.UserRequest) error {
 	return nil
 }
 
-func GetSentRequests(userID string) ([]bson.M, error) {
+func GetSentRequests(userID string, pagination utilis.Pagination) ([]bson.M, int64, error) {
 	collection := config.GetCollection("requests")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -92,16 +93,21 @@ func GetSentRequests(userID string) ([]bson.M, error) {
 
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		return nil, errors.New("invalid user id")
+		return nil, 0, errors.New("invalid user id")
+	}
+
+	matchFilter := bson.M{"fromUserId": objectID}
+
+	totalRecords, err := collection.CountDocuments(ctx, matchFilter)
+	if err != nil {
+		return nil, 0, errors.New("failed to count requests")
 	}
 
 	pipeline := mongo.Pipeline{
 		{
 			{
-				Key: "$match",
-				Value: bson.M{
-					"fromUserId": objectID,
-				},
+				Key:   "$match",
+				Value: matchFilter,
 			},
 		},
 		{
@@ -137,11 +143,23 @@ func GetSentRequests(userID string) ([]bson.M, error) {
 				},
 			},
 		},
+		{
+			{
+				Key:   "$skip",
+				Value: pagination.Skip(),
+			},
+		},
+		{
+			{
+				Key:   "$limit",
+				Value: pagination.Limit,
+			},
+		},
 	}
 
 	cursor, err := collection.Aggregate(ctx, pipeline)
 	if err != nil {
-		return nil, errors.New("failed to fetch requests")
+		return nil, 0, errors.New("failed to fetch requests")
 	}
 	defer cursor.Close(ctx)
 
@@ -151,16 +169,16 @@ func GetSentRequests(userID string) ([]bson.M, error) {
 		var request bson.M
 
 		if err := cursor.Decode(&request); err != nil {
-			return nil, errors.New("failed to decode request")
+			return nil, 0, errors.New("failed to decode request")
 		}
 
 		requests = append(requests, request)
 	}
 
-	return requests, nil
+	return requests, totalRecords, nil
 }
 
-func GetReceivedRequests(userID string) ([]bson.M, error) {
+func GetReceivedRequests(userID string, pagination utilis.Pagination) ([]bson.M, int64, error) {
 	collection := config.GetCollection("requests")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -168,16 +186,21 @@ func GetReceivedRequests(userID string) ([]bson.M, error) {
 
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		return nil, errors.New("invalid user id")
+		return nil, 0, errors.New("invalid user id")
+	}
+
+	matchFilter := bson.M{"toUserId": objectID}
+
+	totalRecords, err := collection.CountDocuments(ctx, matchFilter)
+	if err != nil {
+		return nil, 0, errors.New("failed to count requests")
 	}
 
 	pipeline := mongo.Pipeline{
 		{
 			{
-				Key: "$match",
-				Value: bson.M{
-					"toUserId": objectID,
-				},
+				Key:   "$match",
+				Value: matchFilter,
 			},
 		},
 		{
@@ -213,11 +236,23 @@ func GetReceivedRequests(userID string) ([]bson.M, error) {
 				},
 			},
 		},
+		{
+			{
+				Key:   "$skip",
+				Value: pagination.Skip(),
+			},
+		},
+		{
+			{
+				Key:   "$limit",
+				Value: pagination.Limit,
+			},
+		},
 	}
 
 	cursor, err := collection.Aggregate(ctx, pipeline)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	defer cursor.Close(ctx)
@@ -228,13 +263,13 @@ func GetReceivedRequests(userID string) ([]bson.M, error) {
 		var request bson.M
 
 		if err := cursor.Decode(&request); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 
 		requests = append(requests, request)
 	}
 
-	return requests, nil
+	return requests, totalRecords, nil
 }
 
 func AcceptRequest(requestID string) error {

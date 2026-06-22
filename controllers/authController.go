@@ -34,6 +34,7 @@ func Register(c *gin.Context) {
 	utilis.Success(c, http.StatusCreated,
 		"Registration successful. A temporary password has been sent to your email.",
 		user,
+		0,
 	)
 }
 
@@ -60,7 +61,7 @@ func RefreshToken(c *gin.Context) {
 	utilis.Success(c, http.StatusOK, "Tokens refreshed", gin.H{
 		"accessToken":  tokens.AccessToken,
 		"refreshToken": tokens.RefreshToken,
-	})
+	}, 0)
 }
 
 func Login(c *gin.Context) {
@@ -83,7 +84,7 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	utilis.Success(c, http.StatusOK, "Login Successful", loginResp)
+	utilis.Success(c, http.StatusOK, "Login Successful", loginResp, 0)
 }
 
 func Logout(c *gin.Context) {
@@ -104,7 +105,7 @@ func Logout(c *gin.Context) {
 		return
 	}
 
-	utilis.Success(c, http.StatusOK, "Logout successful", nil)
+	utilis.Success(c, http.StatusOK, "Logout successful", nil, 0)
 }
 
 func ForgotPassword(c *gin.Context) {
@@ -121,7 +122,7 @@ func ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	utilis.Success(c, http.StatusOK, "Password reset email sent", nil)
+	utilis.Success(c, http.StatusOK, "Password reset email sent", nil, 0)
 
 }
 
@@ -139,7 +140,7 @@ func VerifyOTP(c *gin.Context) {
 		return
 	}
 
-	utilis.Success(c, http.StatusOK, "OTP verified", nil)
+	utilis.Success(c, http.StatusOK, "OTP verified", nil, 0)
 }
 
 func ResetPassword(c *gin.Context) {
@@ -160,5 +161,5 @@ func ResetPassword(c *gin.Context) {
 		}
 	}
 
-	utilis.Success(c, http.StatusOK, "Password reset successful", nil)
+	utilis.Success(c, http.StatusOK, "Password reset successful", nil, 0)
 }
