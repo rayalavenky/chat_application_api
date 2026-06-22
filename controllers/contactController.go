@@ -11,23 +11,28 @@ import (
 func GetContacts(c *gin.Context) {
 	userID := c.Param("userId")
 
-	contacts, err := services.GetContacts(userID)
+	pagination := utilis.GetPagination(c)
+
+	contacts, totalRecords, err := services.GetContacts(userID, pagination)
 
 	if err != nil {
 		utilis.Error(c, http.StatusInternalServerError, "failed to fetch contacts")
 		return
 	}
 
-	utilis.Success(c, http.StatusOK, "Contacts fetched successfully", contacts)
+	utilis.Success(c, http.StatusOK, "Contacts fetched successfully", contacts, totalRecords)
 }
 
 func GetOnlineContacts(c *gin.Context) {
 	userID := c.Param("userId")
-	contacts, err := services.GetOnlineContacts(userID)
+
+	pagination := utilis.GetPagination(c)
+
+	contacts, totalRecords, err := services.GetOnlineContacts(userID, pagination)
 
 	if err != nil {
 		utilis.Error(c, http.StatusInternalServerError, "failed to fetch online contacts")
 		return
 	}
-	utilis.Success(c, http.StatusOK, "Online contacts fetched successfully", contacts)
+	utilis.Success(c, http.StatusOK, "Online contacts fetched successfully", contacts, totalRecords)
 }

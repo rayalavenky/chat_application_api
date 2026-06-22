@@ -3,6 +3,7 @@ package services
 import (
 	"chat_application_api/config"
 	"chat_application_api/models"
+	"chat_application_api/utilis"
 	"context"
 	"errors"
 	"time"
@@ -10,9 +11,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func GetUsers(search models.UserSearch, loggedInUserID string) ([]models.UserResponse, error) {
+func GetUsers(search models.UserSearch, loggedInUserID string, pagination utilis.Pagination) ([]models.UserResponse, int64, error) {
 	userCollection := config.GetCollection("users")
 	requestCollection := config.GetCollection("requests")
 
@@ -23,7 +25,7 @@ func GetUsers(search models.UserSearch, loggedInUserID string) ([]models.UserRes
 
 	loggedInObjectID, err := primitive.ObjectIDFromHex(loggedInUserID)
 	if err != nil {
-		return nil, errors.New("invalid logged in user ID")
+		return nil, 0, errors.New("invalid logged in user ID")
 	}
 
 	filter["_id"] = bson.M{
@@ -58,21 +60,31 @@ func GetUsers(search models.UserSearch, loggedInUserID string) ([]models.UserRes
 		}
 	}
 
-	// fetch users
-	cursor, err := userCollection.Find(ctx, filter)
+	// total matching records, before pagination is applied
+	totalRecords, err := userCollection.CountDocuments(ctx, filter)
 	if err != nil {
-		return nil, errors.New("failed to fetch users")
+		return nil, 0, errors.New("failed to count users")
+	}
+
+	// fetch the requested page of users
+	findOptions := options.Find().
+		SetSkip(pagination.Skip()).
+		SetLimit(pagination.Limit)
+
+	cursor, err := userCollection.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, 0, errors.New("failed to fetch users")
 	}
 	defer cursor.Close(ctx)
 
 	requestedUsers, err := getSentRequestIDs(ctx, requestCollection, loggedInObjectID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	incomingRequests, err := getPendingIncomingRequests(ctx, requestCollection, loggedInObjectID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	var users []models.UserResponse
@@ -80,7 +92,7 @@ func GetUsers(search models.UserSearch, loggedInUserID string) ([]models.UserRes
 	for cursor.Next(ctx) {
 		var user models.User
 		if err := cursor.Decode(&user); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 
 		incomingID, hasIncoming := incomingRequests[user.ID]
@@ -106,10 +118,10 @@ func GetUsers(search models.UserSearch, loggedInUserID string) ([]models.UserRes
 		})
 	}
 	if err := cursor.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return users, nil
+	return users, totalRecords, nil
 }
 
 func getSentRequestIDs(ctx context.Context, requestCollection *mongo.Collection, fromUserID primitive.ObjectID) (map[primitive.ObjectID]bool, error) {

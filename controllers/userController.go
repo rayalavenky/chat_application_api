@@ -33,12 +33,14 @@ func GetUsers(c *gin.Context) {
 		return
 	}
 
-	users, err := services.GetUsers(search, userID)
+	pagination := utilis.GetPagination(c)
+
+	users, totalRecords, err := services.GetUsers(search, userID, pagination)
 	if err != nil {
 		utilis.Error(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	utilis.Success(c, http.StatusOK, "Users fetched successfully", users)
+	utilis.Success(c, http.StatusOK, "Users fetched successfully", users, totalRecords)
 }
 
 func GetUserByID(c *gin.Context) {
@@ -55,7 +57,7 @@ func GetUserByID(c *gin.Context) {
 		return
 	}
 
-	utilis.Success(c, http.StatusOK, "User fetched successfully", user)
+	utilis.Success(c, http.StatusOK, "User fetched successfully", user, 0)
 }
 
 func UpdateProfile(c *gin.Context) {
@@ -83,5 +85,5 @@ func UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	utilis.Success(c, http.StatusOK, "Profile updated successfully", user)
+	utilis.Success(c, http.StatusOK, "Profile updated successfully", user, 0)
 }
