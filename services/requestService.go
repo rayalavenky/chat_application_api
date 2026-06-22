@@ -362,6 +362,15 @@ func RejectRequest(requestID string) error {
 		return errors.New("invalid request ID")
 	}
 
+	// load the request so we know who to notify
+	err = requestCollection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&request)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return errors.New("request not found")
+		}
+		return err
+	}
+
 	_, err = requestCollection.UpdateOne(
 		ctx,
 		bson.M{
