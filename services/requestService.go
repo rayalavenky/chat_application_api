@@ -64,6 +64,8 @@ func SendRequest(req models.UserRequest) error {
 				return errors.New("failed to resend request")
 			}
 
+			notifyNewRequest(ctx, existingRequest.RequestID, req)
+
 			return nil
 		}
 	}
@@ -77,22 +79,51 @@ func SendRequest(req models.UserRequest) error {
 	req.CreatedAt = time.Now()
 	req.Status = "pending"
 
-	_, err = collection.InsertOne(ctx, req)
+	res, err := collection.InsertOne(ctx, req)
 	if err != nil {
 		return errors.New("failed to send request")
 	}
 
-	// websocket notification
+	requestID, _ := res.InsertedID.(primitive.ObjectID)
+	notifyNewRequest(ctx, requestID, req)
+
+	return nil
+}
+
+// notifyNewRequest pushes a "new_request" event to the receiver carrying the
+// full request row (including the sender's profile), shaped to match the
+// received-requests list so the frontend can insert it without refetching.
+func notifyNewRequest(ctx context.Context, requestID primitive.ObjectID, req models.UserRequest) {
+	var fromUser models.User
+	if err := config.GetCollection("users").
+		FindOne(ctx, bson.M{"_id": req.FromUserID}).
+		Decode(&fromUser); err != nil {
+		return
+	}
+
 	websocket.SendToUser(
 		req.ToUserID.Hex(),
 		map[string]interface{}{
-			"type":     "new_request",
-			"senderId": req.FromUserID.Hex(),
-			"message":  "New connection request",
+			"type":    "new_request",
+			"message": "New connection request",
+			"request": map[string]interface{}{
+				"requestId":  requestID.Hex(),
+				"fromUserId": req.FromUserID.Hex(),
+				"toUserId":   req.ToUserID.Hex(),
+				"status":     "pending",
+				"createdAt":  time.Now(),
+				"fromUser": map[string]interface{}{
+					"id":          fromUser.ID.Hex(),
+					"firstName":   fromUser.FirstName,
+					"lastName":    fromUser.LastName,
+					"email":       fromUser.Email,
+					"phoneNumber": fromUser.PhoneNumber,
+					"bio":         fromUser.Bio,
+					"isOnline":    fromUser.IsOnline,
+				},
+			},
 		},
 	)
-
-	return nil
 }
 
 func GetSentRequests(userID string) ([]bson.M, error) {
@@ -328,7 +359,7 @@ func AcceptRequest(requestID string) error {
 	}
 
 	// insert both contacts
-	_, err = contactCollection.InsertOne(ctx, contact1)
+	res1, err := contactCollection.InsertOne(ctx, contact1)
 	if err != nil {
 		return err
 	}
@@ -338,12 +369,28 @@ func AcceptRequest(requestID string) error {
 		return err
 	}
 
+	contact1ID, _ := res1.InsertedID.(primitive.ObjectID)
+
+	// Notify the original sender: flip their sent-request status and hand them
+	// the new contact row (their A->B view) so the contacts list updates live.
 	websocket.SendToUser(
 		request.FromUserID.Hex(),
 		map[string]interface{}{
-			"type":    "request_accepted",
-			"userId":  request.ToUserID.Hex(),
-			"message": "Your request was accepted",
+			"type":      "request_accepted",
+			"requestId": objectID.Hex(),
+			"userId":    request.ToUserID.Hex(),
+			"message":   "Your request was accepted",
+			"contact": map[string]interface{}{
+				"id":            contact1ID.Hex(),
+				"userId":        contact1.UserID.Hex(),
+				"contactUserId": contact1.ContactUserID.Hex(),
+				"firstName":     contact1.FirstName,
+				"lastName":      contact1.LastName,
+				"email":         contact1.Email,
+				"phoneNumber":   contact1.PhoneNumber,
+				"isOnline":      contact1.IsOnline,
+				"createdAt":     contact1.CreatedAt,
+			},
 		},
 	)
 
@@ -388,9 +435,10 @@ func RejectRequest(requestID string) error {
 		websocket.SendToUser(
 			request.FromUserID.Hex(),
 			map[string]interface{}{
-				"type":    "request_rejected",
-				"userId":  request.ToUserID.Hex(),
-				"message": "Your request was rejected",
+				"type":      "request_rejected",
+				"requestId": requestID,
+				"userId":    request.ToUserID.Hex(),
+				"message":   "Your request was rejected",
 			},
 		)
 	}

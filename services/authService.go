@@ -10,6 +10,7 @@ import (
 	"chat_application_api/config"
 	"chat_application_api/models"
 	"chat_application_api/utilis"
+	"chat_application_api/websocket"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -212,6 +213,9 @@ func Login(req models.LoginRequest) (*models.LoginResponse, error) {
 			err,
 		)
 	}
+
+	broadcastPresence(ctx, user.ID, true)
+
 	user.IsOnline = true
 	user.LastSeen = now
 
@@ -281,7 +285,45 @@ func Logout(userID string) error {
 		)
 	}
 
+	broadcastPresence(statusCtx, objectID, false)
+
 	return nil
+}
+
+// broadcastPresence pushes a "presence" event to every user who has the given
+// user as a contact, so their contact lists (and the online tab) update live.
+func broadcastPresence(ctx context.Context, userID primitive.ObjectID, isOnline bool) {
+	contactsColl := config.GetCollection("contacts")
+
+	// Everyone who has this user in their contacts.
+	cursor, err := contactsColl.Find(ctx, bson.M{"contactUserId": userID})
+	if err != nil {
+		log.Printf("presence: failed to load contacts for %s: %v", userID.Hex(), err)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	payload := map[string]interface{}{
+		"type":     "presence",
+		"userId":   userID.Hex(),
+		"isOnline": isOnline,
+	}
+
+	seen := make(map[string]bool)
+	for cursor.Next(ctx) {
+		var contact models.Contact
+		if err := cursor.Decode(&contact); err != nil {
+			continue
+		}
+
+		ownerID := contact.UserID.Hex()
+		if seen[ownerID] {
+			continue
+		}
+		seen[ownerID] = true
+
+		websocket.SendToUser(ownerID, payload)
+	}
 }
 
 func ForgotPassword(req models.ForgotPasswordRequest) error {
