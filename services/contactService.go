@@ -57,20 +57,24 @@ func GetContacts(userID string, pagination utilis.Pagination) ([]models.Contact,
 	return contacts, totalRecords, nil
 }
 
-func GetOnlineContacts(userID string, pagination utilis.Pagination) ([]models.Contact, int64, error) {
+func GetOnlineContacts(userID string, isAdmin bool, pagination utilis.Pagination) ([]models.Contact, int64, error) {
 	collection := config.GetCollection("contacts")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	objectID, err := primitive.ObjectIDFromHex(userID)
-	if err != nil {
-		return nil, 0, errors.New("invalid user id")
+	filter := bson.M{
+		"isOnline": true,
 	}
 
-	filter := bson.M{
-		"userId":   objectID,
-		"isOnline": true,
+	if !isAdmin {
+		objectID, err := primitive.ObjectIDFromHex(userID)
+		if err != nil {
+			return nil, 0, errors.New("invalid user id")
+		}
+
+		filter["userId"] = objectID
+
 	}
 
 	totalRecords, err := collection.CountDocuments(ctx, filter)

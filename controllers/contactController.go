@@ -25,10 +25,11 @@ func GetContacts(c *gin.Context) {
 
 func GetOnlineContacts(c *gin.Context) {
 	userID := c.Param("userId")
+	isAdmin := c.Query("isAdmin") == "true"
 
 	pagination := utilis.GetPagination(c)
 
-	contacts, totalRecords, err := services.GetOnlineContacts(userID, pagination)
+	contacts, totalRecords, err := services.GetOnlineContacts(userID, isAdmin, pagination)
 
 	if err != nil {
 		utilis.Error(c, http.StatusInternalServerError, "failed to fetch online contacts")
